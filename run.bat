@@ -1,57 +1,55 @@
 @echo off
-chcp 65001 >nul
-echo ====================================================
-echo   ระบบรายงานวิจัยประจำเดือน -- Streamlit Dashboard
-echo ====================================================
+chcp 65001 >nul 2>&1
+
+echo ============================================================
+echo   Research Dashboard - Streamlit
+echo ============================================================
 echo.
 
-REM --- หา Python command ที่ใช้งานได้ ---
+REM --- Find Python ---
 set PYTHON_CMD=
 
 py --version >nul 2>&1
-if %errorlevel% equ 0 (
-    set PYTHON_CMD=py
-    goto :found_python
+if %errorlevel% equ 0 set PYTHON_CMD=py
+
+if "%PYTHON_CMD%"=="" (
+    python --version >nul 2>&1
+    if %errorlevel% equ 0 set PYTHON_CMD=python
 )
 
-python --version >nul 2>&1
-if %errorlevel% equ 0 (
-    set PYTHON_CMD=python
-    goto :found_python
+if "%PYTHON_CMD%"=="" (
+    python3 --version >nul 2>&1
+    if %errorlevel% equ 0 set PYTHON_CMD=python3
 )
 
-python3 --version >nul 2>&1
-if %errorlevel% equ 0 (
-    set PYTHON_CMD=python3
-    goto :found_python
-)
-
-echo [ERROR] ไม่พบ Python กรุณาติดตั้ง Python 3.10+
-echo         ดาวน์โหลดได้ที่ https://www.python.org/downloads/
-echo         ** สำคัญ: ติ๊ก "Add Python to PATH" ตอนติดตั้ง **
-pause
-exit /b 1
-
-:found_python
-echo [OK] ใช้คำสั่ง: %PYTHON_CMD%
-%PYTHON_CMD% --version
-echo.
-
-REM --- ติดตั้ง dependencies ---
-echo [1/2] กำลังติดตั้ง dependencies...
-%PYTHON_CMD% -m pip install -r requirements.txt --quiet
-if %errorlevel% neq 0 (
-    echo [ERROR] ติดตั้ง dependencies ไม่สำเร็จ
+if "%PYTHON_CMD%"=="" (
+    echo [ERROR] Python not found.
+    echo Please install Python 3.10+ from https://www.python.org/downloads/
+    echo IMPORTANT: Check "Add Python to PATH" during installation.
+    echo.
     pause
     exit /b 1
 )
-echo [OK] ติดตั้งสำเร็จ
+
+echo [OK] Using: %PYTHON_CMD%
+%PYTHON_CMD% --version
 echo.
 
-REM --- เปิด Dashboard ---
-echo [2/2] กำลังเปิด Dashboard...
-echo       เปิดเบราว์เซอร์ไปที่ http://localhost:8501
-echo       (กด Ctrl+C เพื่อหยุด)
+REM --- Install dependencies ---
+echo [1/2] Installing dependencies...
+%PYTHON_CMD% -m pip install -r requirements.txt --quiet
+if %errorlevel% neq 0 (
+    echo [ERROR] pip install failed.
+    pause
+    exit /b 1
+)
+echo [OK] Dependencies installed.
+echo.
+
+REM --- Launch dashboard ---
+echo [2/2] Starting dashboard...
+echo       Open browser at: http://localhost:8501
+echo       Press Ctrl+C to stop.
 echo.
 
 %PYTHON_CMD% -m streamlit run app.py ^
