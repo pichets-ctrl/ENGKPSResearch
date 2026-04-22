@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบรายงานวิจัยประจำเดือน</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── Reset ── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f0f2f6;color:#222;min-height:100vh}
+
+/* ── Sidebar ── */
+#sidebar{
+  position:fixed;left:0;top:0;bottom:0;width:268px;
+  background:#16213e;color:#cdd;overflow-y:auto;z-index:200;
+  display:flex;flex-direction:column;
+}
+#sb{padding:18px 16px;flex:1}
+.sb-logo{font-size:1.05rem;font-weight:700;color:#fff;margin-bottom:14px;line-height:1.4}
+.sb-hr{border:none;border-top:1px solid #243454;margin:12px 0}
+.sb-label{font-size:.73rem;color:#7a8fb0;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;margin-top:10px}
+.sb-sec{font-size:.92rem;font-weight:600;color:#b8c8e8;margin-bottom:8px}
+
+/* Tabs */
+.tab-bar{display:flex;gap:4px;margin-bottom:10px}
+.tab-btn{
+  flex:1;padding:6px 4px;border:none;border-radius:5px;
+  cursor:pointer;font-family:inherit;font-size:.78rem;font-weight:600;
+  background:#1e2d4a;color:#8a9fc0;transition:all .18s
+}
+.tab-btn.active{background:#1565c0;color:#fff}
+.tab-pane{display:none}
+.tab-pane.active{display:block}
+
+/* Drop zone */
+.drop-zone{
+  position:relative;border:2px dashed #2e4a7a;border-radius:8px;
+  padding:16px 10px;text-align:center;cursor:pointer;
+  color:#6a80a0;font-size:.82rem;transition:border-color .2s;margin-bottom:6px
+}
+.drop-zone:hover,.drop-zone.over{border-color:#1e88e5;color:#90b8f0}
+.drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.dz-icon{font-size:1.9rem;display:block;margin-bottom:5px}
+
+/* Sidebar inputs */
+.s-sel,.s-inp{
+  width:100%;padding:7px 9px;border-radius:5px;border:1px solid #2e3a5a;
+  background:#1e2d4a;color:#cdd;font-family:inherit;font-size:.85rem;
+  margin-top:2px;outline:none
+}
+.s-sel:focus,.s-inp:focus{border-color:#1565c0}
+.s-sel[multiple]{height:108px}
+.s-sel option{background:#1e2d4a}
+
+/* Reload btn */
+.reload-btn{
+  width:100%;padding:8px;border-radius:6px;border:none;
+  background:#0d47a1;color:#fff;font-family:inherit;font-size:.88rem;
+  cursor:pointer;margin-top:6px;transition:background .18s
+}
+.reload-btn:hover:not(:disabled){background:#1565c0}
+.reload-btn:disabled{background:#243454;color:#556;cursor:default}
+#loadedAt{font-size:.72rem;color:#5a6f90;margin-top:5px;text-align:center;min-height:16px}
+
+/* ── Main ── */
+#main{margin-left:268px;padding:20px;min-height:100vh}
+
+/* Welcome */
+#welcome{
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:center;height:80vh;text-align:center;color:#888
+}
+#welcome h1{font-size:1.9rem;color:#3a4a6a;margin-bottom:10px}
+.wlc-icon{font-size:5rem;margin-bottom:18px;opacity:.7}
+
+/* Header */
+.hdr{
+  background:linear-gradient(90deg,#1565c0 0%,#283593 100%);
+  color:#fff;padding:14px 22px;border-radius:10px;margin-bottom:18px
+}
+.hdr h1{font-size:1.45rem;margin-bottom:5px}
+.hdr-meta{font-size:.82rem;opacity:.88;line-height:1.9}
+
+/* LIVE badge */
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.1}}
+.live{
+  display:inline-block;background:#e53935;color:#fff;
+  font-size:9px;font-weight:700;letter-spacing:1px;
+  padding:2px 7px;border-radius:3px;
+  animation:blink 1.2s step-start infinite;vertical-align:middle;margin-left:8px
+}
+
+/* Card */
+.card{background:#fff;border-radius:10px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,.07);margin-bottom:18px}
+.card-title{font-size:.98rem;font-weight:700;color:#333;margin-bottom:14px}
+
+/* Metrics */
+#metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:14px;margin-bottom:18px}
+.mc{
+  background:#fff;border-radius:10px;padding:14px 16px;
+  box-shadow:0 2px 8px rgba(0,0,0,.07);border-left:4px solid #1565c0
+}
+.mc-lbl{font-size:.75rem;color:#888;margin-bottom:4px}
+.mc-val{font-size:1.45rem;font-weight:700;color:#1565c0;word-break:break-all}
+.mc-sub{font-size:.72rem;color:#aaa;margin-top:3px}
+
+/* Search */
+.srch{
+  width:100%;padding:8px 12px;border-radius:6px;border:1px solid #dde;
+  font-family:inherit;font-size:.88rem;margin-bottom:12px;outline:none
+}
+.srch:focus{border-color:#1565c0;box-shadow:0 0 0 2px rgba(21,101,192,.12)}
+
+/* Table */
+.tbl-wrap{overflow-x:auto;max-height:420px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+thead th{
+  background:#f4f6fb;color:#444;font-weight:600;
+  padding:8px 11px;text-align:left;border-bottom:2px solid #dde;
+  white-space:nowrap;cursor:pointer;user-select:none;
+  position:sticky;top:0;z-index:1
+}
+thead th:hover{background:#e8ecfa}
+.sico{margin-left:3px;opacity:.35;font-size:.68rem}
+.sorted .sico{opacity:1}
+tbody tr{border-bottom:1px solid #f0f0f0}
+tbody tr:hover{background:#f8faff}
+tbody td{padding:7px 11px;color:#333;white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis}
+.tbl-cap{font-size:.78rem;color:#999;margin-top:7px}
+.empty{text-align:center;color:#bbb;padding:36px;font-size:.9rem}
+
+/* Pagination */
+.pg{display:flex;gap:5px;justify-content:center;margin-top:10px;flex-wrap:wrap}
+.pg-btn{
+  padding:4px 11px;border-radius:5px;border:1px solid #dde;
+  background:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;transition:all .15s
+}
+.pg-btn:hover:not(:disabled){background:#eef2ff;border-color:#1565c0}
+.pg-btn.cur{background:#1565c0;color:#fff;border-color:#1565c0}
+.pg-btn:disabled{opacity:.35;cursor:default}
+
+/* Charts */
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
+
+/* Category filter pills */
+.filter-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.filter-group{flex:1;min-width:160px}
+.filter-group label{font-size:.75rem;color:#888;display:block;margin-bottom:3px}
+.filter-group select{
+  width:100%;padding:5px 7px;border:1px solid #dde;border-radius:5px;
+  font-family:inherit;font-size:.82rem;outline:none
+}
+
+/* Toast */
+#toast{
+  position:fixed;bottom:22px;right:22px;z-index:9999;
+  background:#323232;color:#fff;padding:11px 18px;
+  border-radius:8px;font-size:.88rem;pointer-events:none;
+  opacity:0;transition:opacity .3s;box-shadow:0 4px 16px rgba(0,0,0,.25)
+}
+#toast.show{opacity:1}
+
+/* ts selectors */
+.ts-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.ts-row label{font-size:.78rem;color:#888;display:block;margin-bottom:2px}
+.ts-row select{padding:6px 9px;border:1px solid #dde;border-radius:5px;font-family:inherit;font-size:.85rem;outline:none}
+
+@media(max-width:900px){
+  .chart-row{grid-template-columns:1fr}
+  #sidebar{width:220px}
+  #main{margin-left:220px}
+}
+@media(max-width:600px){
+  #sidebar{display:none}
+  #main{margin-left:0}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════ SIDEBAR ══════════════ -->
+<div id="sidebar">
+<div id="sb">
+  <div class="sb-logo">⚙️ การตั้งค่า</div>
+  <hr class="sb-hr">
+
+  <!-- File source -->
+  <div class="sb-sec">📁 เลือกไฟล์</div>
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('upload')">⬆️ Upload</button>
+    <button class="tab-btn" onclick="switchTab('folder')">📂 Folder</button>
+  </div>
+
+  <div id="tab-upload" class="tab-pane active">
+    <div class="drop-zone" id="dz">
+      <input type="file" accept=".xlsx,.xls" id="fileInput" onchange="onFileInput(this)">
+      <span class="dz-icon">📂</span>
+      คลิกหรือลากไฟล์มาวาง<br>
+      <span style="font-size:.72rem;color:#556">.xlsx / .xls</span>
+    </div>
+  </div>
+
+  <div id="tab-folder" class="tab-pane">
+    <div class="drop-zone" style="margin-bottom:8px">
+      <input type="file" accept=".xlsx,.xls" id="folderInput" webkitdirectory onchange="onFolderScan(this)">
+      <span class="dz-icon">📁</span>
+      คลิกเพื่อเลือกโฟลเดอร์
+    </div>
+    <div class="sb-label">ไฟล์ที่พบ</div>
+    <select class="s-sel" id="folderSel" size="4" onchange="onFolderPick(this.value)">
+      <option value="">— สแกนโฟลเดอร์ก่อน —</option>
+    </select>
+  </div>
+
+  <hr class="sb-hr">
+
+  <!-- Sheet -->
+  <div class="sb-label">📋 เลือก Sheet</div>
+  <select class="s-sel" id="sheetSel" onchange="loadSheet(this.value)">
+    <option value="">— โหลดไฟล์ก่อน —</option>
+  </select>
+
+  <hr class="sb-hr">
+
+  <!-- Chart axes -->
+  <div class="sb-sec">📈 ตั้งค่ากราฟ</div>
+  <div class="sb-label">แกน X / Category</div>
+  <select class="s-sel" id="xSel" onchange="onAxesChange()">
+    <option value="">— เลือก —</option>
+  </select>
+  <div class="sb-label" style="margin-top:8px">แกน Y / Values (ตัวเลข)</div>
+  <select class="s-sel" id="ySel" multiple onchange="onAxesChange()">
+  </select>
+
+  <hr class="sb-hr">
+
+  <!-- Reload -->
+  <div class="sb-sec">🔄 โหลดข้อมูล</div>
+  <button class="reload-btn" id="reloadBtn" disabled onclick="reloadFile()">↺ โหลดใหม่</button>
+  <div id="loadedAt"></div>
+</div>
+</div>
+
+<!-- ══════════════ MAIN ══════════════ -->
+<div id="main">
+
+  <!-- Welcome -->
+  <div id="welcome">
+    <div class="wlc-icon">📊</div>
+    <h1>ระบบรายงานวิจัยประจำเดือน</h1>
+    <p style="margin-bottom:8px">เลือกไฟล์ Excel จากแถบด้านซ้ายเพื่อเริ่มต้นใช้งาน</p>
+    <p style="font-size:.85rem;color:#aaa">รองรับ .xlsx และ .xls &nbsp;|&nbsp; ไม่ต้องติดตั้งโปรแกรมเพิ่ม</p>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dash" style="display:none">
+
+    <!-- Header -->
+    <div class="hdr">
+      <h1 id="hdrTitle">📊 ระบบรายงานวิจัยประจำเดือน <span class="live">● LIVE</span></h1>
+      <div class="hdr-meta" id="hdrMeta"></div>
+    </div>
+
+    <!-- Metrics -->
+    <div id="metrics"></div>
+
+    <!-- Table -->
+    <div class="card">
+      <div class="card-title">🗃️ ตารางข้อมูล</div>
+      <input class="srch" id="srch" type="text" placeholder="🔎 ค้นหา (ค้นทุก column)…" oninput="applyFilter()">
+      <div id="filterArea" class="filter-wrap"></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead id="tHead"></thead>
+          <tbody id="tBody"></tbody>
+        </table>
+        <div class="empty" id="tEmpty" style="display:none">ไม่พบข้อมูลที่ตรงกัน</div>
+      </div>
+      <div class="tbl-cap" id="tCap"></div>
+      <div class="pg" id="pg"></div>
+    </div>
+
+    <!-- Bar + Line -->
+    <div class="chart-row">
+      <div class="card">
+        <div class="card-title">📊 Bar Chart</div>
+        <div id="barChart"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">📈 Line Chart</div>
+        <div id="lineChart"></div>
+      </div>
+    </div>
+
+    <!-- Time-series -->
+    <div class="card" id="tsCard" style="display:none">
+      <div class="card-title">📅 Time-Series (ตรวจจับวันที่อัตโนมัติ)</div>
+      <div class="ts-row">
+        <div>
+          <label>คอลัมน์วันที่</label>
+          <select id="tsDate" onchange="renderTS()"></select>
+        </div>
+        <div>
+          <label>ค่าที่ต้องการแสดง</label>
+          <select id="tsVal" onchange="renderTS()"></select>
+        </div>
+      </div>
+      <div id="tsChart"></div>
+    </div>
+
+  </div><!-- /dash -->
+</div><!-- /main -->
+
+<div id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════
+let WB        = null;   // workbook
+let curFile   = null;   // current File object
+let curSheet  = '';
+let rawRows   = [];     // [{col:val,...}]  raw (Date objects kept)
+let allRows   = [];     // display-formatted rows (dates → strings)
+let filtered  = [];
+let numCols   = [];
+let dateCols  = [];
+let allCols   = [];
+let sortColIdx = -1;
+let sortAsc   = true;
+let page      = 0;
+const PG      = 50;
+
+// ════════════════════════════════════════════════
+// TAB SWITCH
+// ════════════════════════════════════════════════
+function switchTab(t) {
+  document.querySelectorAll('.tab-btn').forEach((b, i) =>
+    b.classList.toggle('active', (t === 'upload' && i === 0) || (t === 'folder' && i === 1))
+  );
+  document.getElementById('tab-upload').classList.toggle('active', t === 'upload');
+  document.getElementById('tab-folder').classList.toggle('active', t === 'folder');
+}
+
+// ════════════════════════════════════════════════
+// FILE HANDLING
+// ════════════════════════════════════════════════
+function onFileInput(inp) {
+  const f = inp.files[0];
+  if (f) { curFile = f; readWB(f); }
+}
+
+function onFolderScan(inp) {
+  const files = Array.from(inp.files).filter(f => /\.(xlsx|xls)$/i.test(f.name));
+  window._ff = files;
+  const sel = document.getElementById('folderSel');
+  sel.innerHTML = files.length
+    ? files.map((f, i) => `<option value="${i}">${f.name}</option>`).join('')
+    : '<option value="">ไม่พบไฟล์ .xlsx</option>';
+  if (files.length) { curFile = files[0]; readWB(files[0]); }
+}
+
+function onFolderPick(idx) {
+  const f = (window._ff || [])[+idx];
+  if (f) { curFile = f; readWB(f); }
+}
+
+function reloadFile() {
+  if (curFile) readWB(curFile);
+}
+
+function readWB(file) {
+  const r = new FileReader();
+  r.onload = e => {
+    try {
+      WB = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      const now = new Date().toLocaleString('th-TH');
+      document.getElementById('loadedAt').textContent = 'โหลดล่าสุด: ' + now;
+      document.getElementById('reloadBtn').disabled = false;
+      buildSheetList(file.name);
+    } catch (err) {
+      toast('❌ เปิดไฟล์ไม่สำเร็จ: ' + err.message);
+    }
+  };
+  r.readAsArrayBuffer(file);
+}
+
+function buildSheetList(fname) {
+  const sel = document.getElementById('sheetSel');
+  sel.innerHTML = WB.SheetNames
+    .map(n => `<option value="${n}">${n}</option>`).join('');
+  loadSheet(WB.SheetNames[0], fname);
+}
+
+function loadSheet(name, fname) {
+  if (!WB || !name) return;
+  curSheet = name;
+  const sheet = WB.Sheets[name];
+  if (!sheet) return;
+
+  // raw: true → numbers as numbers, dates as Date (because cellDates:true)
+  const data = XLSX.utils.sheet_to_json(sheet, { raw: true, defval: null });
+  if (!data.length) { toast('⚠️ Sheet นี้ไม่มีข้อมูล'); return; }
+
+  allCols = Object.keys(data[0]);
+  detectTypes(data);
+  buildDisplayRows(data);
+  filtered = [...allRows];
+  page = 0; sortColIdx = -1;
+
+  renderDash(fname || (curFile ? curFile.name : ''), name);
+}
+
+// ════════════════════════════════════════════════
+// TYPE DETECTION
+// ════════════════════════════════════════════════
+function detectTypes(data) {
+  numCols = []; dateCols = [];
+  allCols.forEach(col => {
+    const vals = data.map(r => r[col]).filter(v => v !== null && v !== undefined && v !== '');
+    if (!vals.length) return;
+    if (vals.some(v => v instanceof Date)) { dateCols.push(col); return; }
+    if (vals.every(v => typeof v === 'number')) { numCols.push(col); return; }
+    // string that looks like a date
+    if (typeof vals[0] === 'string') {
+      const sample = vals.slice(0, 6);
+      if (sample.every(v => !isNaN(Date.parse(v)) && v.length >= 6)) dateCols.push(col);
+    }
+  });
+}
+
+// ════════════════════════════════════════════════
+// BUILD DISPLAY ROWS (Date → Thai string)
+// ════════════════════════════════════════════════
+function buildDisplayRows(data) {
+  rawRows = data;
+  allRows = data.map(row => {
+    const r = {};
+    allCols.forEach(col => {
+      const v = row[col];
+      r[col] = (v instanceof Date)
+        ? v.toLocaleDateString('th-TH', { year: 'numeric', month: '2-digit', day: '2-digit' })
+        : v;
+    });
+    return r;
+  });
+}
+
+// ════════════════════════════════════════════════
+// RENDER DASHBOARD
+// ════════════════════════════════════════════════
+function renderDash(fname, sheet) {
+  document.getElementById('welcome').style.display = 'none';
+  document.getElementById('dash').style.display = 'block';
+
+  document.getElementById('hdrMeta').innerHTML =
+    `📄 <b>${fname}</b> &nbsp;|&nbsp; ` +
+    `📋 Sheet: <b>${sheet}</b> &nbsp;|&nbsp; ` +
+    `🕒 <b>${document.getElementById('loadedAt').textContent.replace('โหลดล่าสุด: ','')}</b> &nbsp;|&nbsp; ` +
+    `📐 <b>${allRows.length.toLocaleString()} แถว × ${allCols.length} คอลัมน์</b>`;
+
+  populateAxes();
+  buildFilterArea();
+  renderMetrics();
+  renderTable();
+  renderCharts();
+  setupTS();
+}
+
+// ════════════════════════════════════════════════
+// METRICS
+// ════════════════════════════════════════════════
+function getYCols() {
+  const sel = document.getElementById('ySel');
+  const chosen = Array.from(sel.selectedOptions).map(o => o.value).filter(Boolean);
+  return chosen.length ? chosen : numCols.slice(0, 4);
+}
+
+function renderMetrics() {
+  const cols = getYCols().slice(0, 6);
+  if (!cols.length) { document.getElementById('metrics').innerHTML = ''; return; }
+
+  document.getElementById('metrics').innerHTML = cols.map(col => {
+    const vals = allRows.map(r => r[col]).filter(v => v !== null && !isNaN(+v)).map(Number);
+    if (!vals.length) return '';
+    const sum = vals.reduce((a, b) => a + b, 0);
+    const avg = sum / vals.length;
+    const mx  = Math.max(...vals);
+    return `<div class="mc">
+      <div class="mc-lbl">∑ ${col}</div>
+      <div class="mc-val">${fmt(sum)}</div>
+      <div class="mc-sub">เฉลี่ย ${fmt(avg,2)} &nbsp;|&nbsp; นับ ${vals.length.toLocaleString()} &nbsp;|&nbsp; Max ${fmt(mx,2)}</div>
+    </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════════
+// AXIS SELECTS
+// ════════════════════════════════════════════════
+function populateAxes() {
+  const xS = document.getElementById('xSel');
+  const yS = document.getElementById('ySel');
+  xS.innerHTML = allCols.map(c => `<option value="${c}">${c}</option>`).join('');
+  yS.innerHTML = numCols.map((c, i) =>
+    `<option value="${c}"${i < 3 ? ' selected' : ''}>${c}</option>`).join('');
+  if (allCols.length) xS.value = allCols[0];
+}
+
+function onAxesChange() {
+  renderMetrics();
+  renderCharts();
+}
+
+// ════════════════════════════════════════════════
+// FILTER AREA (categorical dropdowns)
+// ════════════════════════════════════════════════
+function buildFilterArea() {
+  const catCols = allCols.filter(c =>
+    !numCols.includes(c) && !dateCols.includes(c) &&
+    allRows.map(r => r[c]).filter(Boolean).length > 0
+  ).slice(0, 5);
+
+  const area = document.getElementById('filterArea');
+  if (!catCols.length) { area.innerHTML = ''; return; }
+
+  area.innerHTML = catCols.map(col => {
+    const uniq = [...new Set(allRows.map(r => r[col]).filter(v => v !== null && v !== ''))].sort();
+    if (uniq.length > 50 || uniq.length < 2) return '';
+    const opts = uniq.map(v => `<option value="${v}">${v}</option>`).join('');
+    return `<div class="filter-group">
+      <label>${col}</label>
+      <select data-col="${col}" onchange="applyFilter()">
+        <option value="">— ทั้งหมด —</option>${opts}
+      </select>
+    </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════════
+// FILTER + SEARCH
+// ════════════════════════════════════════════════
+function applyFilter() {
+  const q = document.getElementById('srch').value.toLowerCase();
+  const catFilters = {};
+  document.querySelectorAll('#filterArea select').forEach(sel => {
+    if (sel.value) catFilters[sel.dataset.col] = sel.value;
+  });
+
+  filtered = allRows.filter(row => {
+    // category filters
+    for (const [col, val] of Object.entries(catFilters)) {
+      if (String(row[col] ?? '') !== val) return false;
+    }
+    // text search
+    if (q) {
+      return allCols.some(c => String(row[c] ?? '').toLowerCase().includes(q));
+    }
+    return true;
+  });
+
+  page = 0;
+  renderTable();
+  renderCharts();
+}
+
+// ════════════════════════════════════════════════
+// TABLE
+// ════════════════════════════════════════════════
+function sortBy(idx) {
+  if (sortColIdx === idx) sortAsc = !sortAsc;
+  else { sortColIdx = idx; sortAsc = true; }
+  const col = allCols[idx];
+  filtered.sort((a, b) => {
+    const va = a[col], vb = b[col];
+    if (va === null || va === undefined) return 1;
+    if (vb === null || vb === undefined) return -1;
+    if (typeof va === 'number' && typeof vb === 'number')
+      return sortAsc ? va - vb : vb - va;
+    return sortAsc
+      ? String(va).localeCompare(String(vb), 'th')
+      : String(vb).localeCompare(String(va), 'th');
+  });
+  page = 0;
+  renderTable();
+}
+
+function renderTable() {
+  const head  = document.getElementById('tHead');
+  const body  = document.getElementById('tBody');
+  const empty = document.getElementById('tEmpty');
+  const cap   = document.getElementById('tCap');
+
+  head.innerHTML = '<tr>' + allCols.map((col, i) => {
+    const active = sortColIdx === i;
+    const ico = active ? (sortAsc ? '▲' : '▼') : '⇅';
+    return `<th class="${active ? 'sorted' : ''}" onclick="sortBy(${i})">
+      ${col}<span class="sico">${ico}</span></th>`;
+  }).join('') + '</tr>';
+
+  if (!filtered.length) {
+    body.innerHTML = '';
+    empty.style.display = 'block';
+    cap.textContent = 'ไม่พบข้อมูล';
+    renderPg(0); return;
+  }
+  empty.style.display = 'none';
+
+  const start = page * PG;
+  const slice = filtered.slice(start, start + PG);
+
+  body.innerHTML = slice.map(row =>
+    '<tr>' + allCols.map(col => {
+      const v = row[col];
+      let d = (v === null || v === undefined) ? '' :
+        (typeof v === 'number' ? v.toLocaleString('th-TH') : String(v));
+      return `<td title="${d}">${d}</td>`;
+    }).join('') + '</tr>'
+  ).join('');
+
+  const total = filtered.length;
+  const end   = Math.min(start + PG, total);
+  cap.textContent =
+    `แสดง ${(start + 1).toLocaleString()}–${end.toLocaleString()} ` +
+    `จาก ${total.toLocaleString()} แถว (ทั้งหมด ${allRows.length.toLocaleString()} แถว)`;
+
+  renderPg(Math.ceil(total / PG));
+}
+
+function renderPg(total) {
+  const el = document.getElementById('pg');
+  if (total <= 1) { el.innerHTML = ''; return; }
+
+  const range = 2;
+  const items = [];
+  for (let i = 0; i < total; i++) {
+    if (i === 0 || i === total - 1 || Math.abs(i - page) <= range) items.push(i);
+    else if (items[items.length - 1] !== '…') items.push('…');
+  }
+
+  let h = `<button class="pg-btn" onclick="goPage(${page-1})" ${page===0?'disabled':''}>‹</button>`;
+  items.forEach(p => {
+    if (p === '…') h += `<span class="pg-btn" style="cursor:default">…</span>`;
+    else h += `<button class="pg-btn ${p===page?'cur':''}" onclick="goPage(${p})">${p+1}</button>`;
+  });
+  h += `<button class="pg-btn" onclick="goPage(${page+1})" ${page===total-1?'disabled':''}>›</button>`;
+  el.innerHTML = h;
+}
+
+function goPage(p) {
+  page = Math.max(0, Math.min(p, Math.ceil(filtered.length / PG) - 1));
+  renderTable();
+  document.getElementById('dash').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ════════════════════════════════════════════════
+// CHARTS
+// ════════════════════════════════════════════════
+const PAL = ['#1565c0','#e53935','#2e7d32','#f57c00','#6a1b9a','#00838f','#558b2f','#ad1457'];
+
+function renderCharts() {
+  const xCol = document.getElementById('xSel').value;
+  const ySelEl = document.getElementById('ySel');
+  const yCols = Array.from(ySelEl.selectedOptions).map(o => o.value).filter(Boolean);
+  const display = yCols.length ? yCols : numCols.slice(0, 3);
+
+  if (!xCol || !display.length) return;
+
+  const xs = filtered.map(r => r[xCol] !== null && r[xCol] !== undefined ? String(r[xCol]) : '');
+
+  const layout = {
+    template: 'plotly_white', height: 370,
+    margin: { l: 45, r: 10, t: 10, b: 90 },
+    legend: { orientation: 'h', y: -0.3 },
+    xaxis: { tickangle: -35 },
+    font: { family: 'Sarabun, sans-serif', size: 12 }
+  };
+
+  // Bar
+  Plotly.react('barChart',
+    display.map((col, i) => ({
+      x: xs, y: filtered.map(r => r[col]),
+      name: col, type: 'bar',
+      marker: { color: PAL[i % PAL.length] }
+    })),
+    { ...layout, barmode: 'group' },
+    { responsive: true }
+  );
+
+  // Line
+  Plotly.react('lineChart',
+    display.map((col, i) => ({
+      x: xs, y: filtered.map(r => r[col]),
+      name: col, type: 'scatter', mode: 'lines+markers',
+      line: { color: PAL[i % PAL.length], width: 2 },
+      marker: { color: PAL[i % PAL.length], size: 5 }
+    })),
+    layout,
+    { responsive: true }
+  );
+}
+
+// ════════════════════════════════════════════════
+// TIME-SERIES
+// ════════════════════════════════════════════════
+function setupTS() {
+  const card = document.getElementById('tsCard');
+  if (!dateCols.length || !numCols.length) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+
+  document.getElementById('tsDate').innerHTML =
+    dateCols.map(c => `<option value="${c}">${c}</option>`).join('');
+  document.getElementById('tsVal').innerHTML =
+    numCols.map(c => `<option value="${c}">${c}</option>`).join('');
+  renderTS();
+}
+
+function renderTS() {
+  const dcol = document.getElementById('tsDate').value;
+  const vcol = document.getElementById('tsVal').value;
+  if (!dcol || !vcol) return;
+
+  // Use rawRows for date objects, allRows for display
+  const pairs = rawRows
+    .map(r => ({ x: r[dcol], y: r[vcol] }))
+    .filter(p => p.x && p.y !== null && p.y !== undefined);
+
+  // Convert string dates to Date objects if needed
+  const asDate = v => v instanceof Date ? v : new Date(v);
+  pairs.sort((a, b) => asDate(a.x) - asDate(b.x));
+
+  Plotly.react('tsChart', [{
+    x: pairs.map(p => asDate(p.x)),
+    y: pairs.map(p => p.y),
+    type: 'scatter', mode: 'lines+markers',
+    fill: 'tozeroy',
+    fillcolor: 'rgba(21,101,192,0.07)',
+    line: { color: '#1565c0', width: 2 },
+    marker: { color: '#1565c0', size: 5 }
+  }], {
+    template: 'plotly_white', height: 300,
+    margin: { l: 45, r: 20, t: 10, b: 50 },
+    xaxis: { title: dcol },
+    yaxis: { title: vcol },
+    font: { family: 'Sarabun, sans-serif', size: 12 }
+  }, { responsive: true });
+}
+
+// ════════════════════════════════════════════════
+// DRAG & DROP
+// ════════════════════════════════════════════════
+const dz = document.getElementById('dz');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('over');
+  const f = e.dataTransfer.files[0];
+  if (f && /\.(xlsx|xls)$/i.test(f.name)) { curFile = f; readWB(f); }
+  else toast('⚠️ กรุณาเลือกไฟล์ .xlsx หรือ .xls เท่านั้น');
+});
+
+// ════════════════════════════════════════════════
+// UTILS
+// ════════════════════════════════════════════════
+function fmt(n, dp = 0) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  return Number(n).toLocaleString('th-TH',
+    dp > 0 ? { minimumFractionDigits: dp, maximumFractionDigits: dp } : { maximumFractionDigits: 0 });
+}
+
+let _tid;
+function toast(msg, ms = 3500) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_tid);
+  _tid = setTimeout(() => el.classList.remove('show'), ms);
+}
+</script>
+</body>
+</html>
